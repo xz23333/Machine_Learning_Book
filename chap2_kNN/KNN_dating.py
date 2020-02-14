@@ -6,6 +6,7 @@ Created on Fri Jan 31 16:10:18 2020
 """
 
 from numpy import *
+import operator
 import matplotlib
 import matplotlib.pyplot as plt
 
@@ -14,7 +15,7 @@ import matplotlib.pyplot as plt
 def classify0(inX, dataSet, labels, k):
     # 用于分类的输入向量是inX，输入的训练样本集为dataSet，标签向量为labels，最后的参数k表示用于选择最近邻居的数目
     dataSetSize = dataSet.shape[0]  # shape[0]是读取矩阵第一维度的长度，即数据的条数
-    # 计算距离
+    # 计算欧式距离
     diffMat = tile(inX, (dataSetSize,1)) - dataSet  # 将目标复制成n行，计算得目标与每个训练数值之间的数值之差。
     sqDiffMat = diffMat**2  # 各个元素分别平方
     sqDistances = sqDiffMat.sum(axis=1)  # 对应行的平方相加，即得到了距离的平方和
@@ -54,30 +55,82 @@ def file2matrix(filename):
     # 返回特征矩阵和分类标签向量
     return returnMat, classLabelVector
 
+def drawing(datingLabels, datingDataMat):
+    LabelsColors = []
+    # 设置颜色
+    for i in datingLabels:
+        if i == 1:
+            LabelsColors.append('black')
+        if i == 2:
+            LabelsColors.append('orange')
+        if i == 3:
+            LabelsColors.append('red')
+    fig = plt.figure()
+    ax = fig.add_subplot(221)
+    # 画出以第一、第二列数据为轴的散点分布图
+    ax.scatter(datingDataMat[:,0],datingDataMat[:,1], color=LabelsColors, s=15, alpha=.5)
+    plt.rcParams['font.sans-serif']=['SimHei']
+    plt.xlabel("每年获得的飞行常客里程数")
+    plt.ylabel("玩视频游戏所耗时间百分比")
 
-datingDataMat, datingLabels = file2matrix('datingTestSet2.txt')
+    bx = fig.add_subplot(222)
+    bx.scatter(datingDataMat[:,0],datingDataMat[:,2], color=LabelsColors, s=15, alpha=.5)
+    plt.xlabel("每年获得的飞行常客里程数")
+    plt.ylabel("每周消费的冰淇淋公升数")
+
+    ax = fig.add_subplot(223)
+    ax.scatter(datingDataMat[:,1],datingDataMat[:,2], color=LabelsColors, s=15, alpha=.5)
+    plt.xlabel("玩视频游戏所耗时间百分比")
+    plt.ylabel("每周消费的冰淇淋公升数")
+    plt.show()
 
 
-LabelsColors = []
-for i in datingLabels:
-    if i == 1:
-        LabelsColors.append('black')
-    if i == 2:
-        LabelsColors.append('orange')
-    if i == 3:
-        LabelsColors.append('red')
+# 数值归一化
+def autoNorm(dataSet):
+    # 归一化公式：Y = (X-Xmin)/(Xmax-Xmin)
+    # min和max是1*3的矩阵，存着每一个特征的最值
+    minVals = dataSet.min(0)
+    maxVals = dataSet.max(0)
+    ranges = maxVals - minVals # 极差
+    normDataSet = zeros(shape(dataSet))
+    m = dataSet.shape[0]  # 读取矩阵第一维度的长度
+    normDataSet = dataSet - tile(minVals, (m,1))
+    normDataSet = normDataSet / tile(ranges, (m,1))
+    return normDataSet, ranges, minVals
+
+#验证分类器，计算错误率
+def datingClassTest():
+    hoRatio = 0.10  # 取数据集中的10%
+    datingDataMat, datingLabels = file2matrix('datingTestSet2.txt')
+    drawing(datingLabels, datingDataMat)
+    # 数据归一化,返回归一化后的矩阵,数据范围,数据最小值
+    normMat, ranges, minVals = autoNorm(datingDataMat)
+    m = normMat.shape[0]  # 获得normMat的行数
+    numTestVecs = int(m*hoRatio)  #10%的数量
+    errorCount = 0.0
+    for i in range(numTestVecs):
+        # 前numTestVecs个数据作为测试集,后m-numTestVecs个数据作为训练集
+        classifierResult = classify0(normMat[i, :], normMat[numTestVecs:m, :],
+                                     datingLabels[numTestVecs:m], 3)
+        print("预测数值为 %d, 实际数值为: %d"
+              % (classifierResult, datingLabels[i]))
+        if classifierResult != datingLabels[i]:
+            errorCount += 1.0
+    print("错误率为 %f" % (errorCount/float(numTestVecs)))
 
 
+datingClassTest()
 
-# 画图
-fig = plt.figure()
-ax = fig.add_subplot(111)
-# 以datingDataMat矩阵的第二、第三列数据
-# 可利用变量datingLabels存储的类标签属性，在散点图上绘制了色彩不等、尺寸不同的点
-ax.scatter(datingDataMat[:,1],datingDataMat[:,2],15.0*array(datingLabels), 15.0*array(datingLabels))
-plt.rcParams['font.sans-serif']=['SimHei']
-plt.ylabel("每周消费的冰淇淋公升数")
-plt.xlabel("玩视频游戏所耗时间百分比")
-plt.show()
+#预测
+def classifyPerson():
+    resultList = ['not at all', 'in small doses', 'in large doses']
+    percentTats = float(input("percentage of time spent playing video games?"))
+    ffMiles = float(input("frequent flier miles earned per year?"))
+    iceCream = float(input("liters of ice cream consumed per year?"))
+    datingDataMat, datingLabels = file2matrix('datingTestSet2.txt')
+    normMat, ranges, minVals = autoNorm(datingDataMat)
+    inArr = array([ffMiles, percentTats, iceCream])
+    classifierResult = classify0((inArr-minVals)/ranges, normMat, datingLabels, 3)
+    print("you will probably like this person: ", resultList[classifierResult-1])
 
-
+classifyPerson()
